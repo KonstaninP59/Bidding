@@ -1,0 +1,42 @@
+services:
+
+  backend:
+    build: ./backend
+    restart: always
+    env_file: .env
+    networks:
+      - internal
+
+  worker:
+    build: ./backend
+    command: celery -A app.workers.celery_app worker --loglevel=info
+    restart: always
+    env_file: .env
+    networks:
+      - internal
+
+  redis:
+    image: redis:7
+    restart: always
+    networks:
+      - internal
+
+  nginx:
+    image: nginx:stable
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend/build:/usr/share/nginx/html
+    depends_on:
+      - backend
+    networks:
+      - internal
+
+networks:
+  internal:
+  
+extra_hosts:
+  - "host.docker.internal:host-gateway"
