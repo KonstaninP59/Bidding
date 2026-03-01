@@ -28,6 +28,9 @@
       </div>
 
       <div class="flex items-center gap-3">
+        {% if user and user.role == "ADMIN" %}
+            <a href="/admin/users" class="text-sm px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">Пользователи</a>
+        {% endif %}
         {% if user %}
           <span class="text-sm muted">👤 {{ user.name or user.email }} ({{ user.role }})</span>
           <form method="post" action="/logout">

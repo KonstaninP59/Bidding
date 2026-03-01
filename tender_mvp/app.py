@@ -34,7 +34,7 @@ from passlib.context import CryptContext
 
 from sqlalchemy import (
     create_engine, String, Integer, DateTime, Boolean, ForeignKey, Text, Numeric, LargeBinary,
-    UniqueConstraint, Index, select, func
+    UniqueConstraint, Index, select, func, text
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
 
@@ -129,6 +129,12 @@ class User(Base):
 class CategorySupplier(Base):
     __tablename__ = "category_suppliers"
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), primary_key=True)
+    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"), primary_key=True)
+
+
+class RoundSupplier(Base):
+    __tablename__ = "round_suppliers"
+    round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), primary_key=True)
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"), primary_key=True)
 
 
@@ -231,6 +237,7 @@ class Invitation(Base):
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     opened_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     responded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reminded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     round: Mapped[Round] = relationship(back_populates="invitations")
     supplier: Mapped[Supplier] = relationship()
@@ -338,7 +345,60 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # uploads as static (для скачивания вложений)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+# app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+
+def _attachment_file_path(att: Attachment) -> str:
+    # поддержка старых записей вида "/uploads/xxx" и новых "xxx"
+    sp = att.stored_path or ""
+    sp = sp.replace("\\", "/")
+    if sp.startswith("/uploads/"):
+        sp = sp.split("/uploads/", 1)[1]
+    return os.path.join(UPLOAD_DIR, sp)
+
+
+@app.get("/attachments/{attachment_id}/download")
+def attachment_download(
+    request: Request,
+    attachment_id: int,
+    token: str = "",
+    db: Session = Depends(db_session),
+):
+    att = db.get(Attachment, attachment_id)
+    if not att:
+        raise HTTPException(404, "Attachment not found")
+
+    # 1) если залогинен — разрешаем
+    user_id = request.session.get("user_id")
+    if user_id:
+        pass
+    else:
+        # 2) иначе — только по token (поставщик)
+        if not token:
+            raise HTTPException(401, "Not authorized")
+        inv = find_invitation_by_token(db, token)
+        rnd = db.get(Round, inv.round_id)
+        req = db.get(PurchaseRequest, rnd.request_id)
+
+        # supplier can download:
+        # - request attachments of this request
+        # - own offer attachments for this round
+        if att.kind == "REQUEST":
+            if att.request_id != req.id:
+                raise HTTPException(403, "Forbidden")
+        elif att.kind == "OFFER":
+            off = db.get(Offer, att.offer_id) if att.offer_id else None
+            if not off or off.supplier_id != inv.supplier_id or off.round_id != rnd.id:
+                raise HTTPException(403, "Forbidden")
+        else:
+            raise HTTPException(403, "Forbidden")
+
+    file_path = _attachment_file_path(att)
+    if not os.path.exists(file_path):
+        raise HTTPException(404, "File missing on disk")
+
+    headers = {"Content-Disposition": f'attachment; filename="{safe_filename(att.original_name)}"'}
+    return StreamingResponse(open(file_path, "rb"), media_type=att.content_type or "application/octet-stream", headers=headers)
 
 
 # -----------------------------
@@ -502,12 +562,28 @@ def build_invite_email(req: PurchaseRequest, rnd: Round, link: str) -> Tuple[str
     return subject, text
 
 
+def build_reminder_email(req: PurchaseRequest, rnd: Round, link: str) -> Tuple[str, str]:
+    subject = f"Напоминание: КП №{req.number} до {rnd.deadline_at.strftime('%Y-%m-%d %H:%M')}"
+    text = (
+        "Здравствуйте!\n\n"
+        f"Напоминаем о необходимости предоставить КП по заявке №{req.number}.\n"
+        f"Раунд: {rnd.number}\n"
+        f"Дедлайн: {rnd.deadline_at.strftime('%Y-%m-%d %H:%M %Z')}\n\n"
+        f"Ссылка: {link}\n"
+    )
+    return subject, text
+
+
 # -----------------------------
 # Startup init
 # -----------------------------
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(engine)
+
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE invitations ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ NULL;"))
+        conn.commit()
 
 
 # -----------------------------
@@ -519,6 +595,84 @@ def root(request: Request, user: Optional[User] = Depends(lambda: None)):
     if request.session.get("user_id"):
         return RedirectResponse("/dashboard", status_code=303)
     return RedirectResponse("/login", status_code=303)
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users_page(
+    request: Request,
+    user: User = Depends(require_roles(Role.ADMIN)),
+    db: Session = Depends(db_session),
+):
+    users = db.scalars(select(User).order_by(User.created_at.desc())).all()
+    return templates.TemplateResponse("users.html", {"request": request, "user": user, "users": users, "Role": Role})
+
+
+@app.post("/admin/users/new")
+def admin_users_new(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    role: str = Form(Role.VIEWER),
+    name: str = Form(""),
+    user: User = Depends(require_roles(Role.ADMIN)),
+    db: Session = Depends(db_session),
+):
+    email = email.strip().lower()
+    role = role.strip().upper()
+
+    if role not in (Role.ADMIN, Role.BUYER, Role.VIEWER):
+        raise HTTPException(400, "Некорректная роль")
+
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(400, "Пароль слишком длинный для bcrypt (<=72 байт)")
+
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(400, "Пользователь с таким email уже существует")
+
+    u = User(email=email, name=name.strip(), password_hash=hash_password(password), role=role, is_active=True)
+    db.add(u)
+    db.commit()
+    audit(db, request, "USER_CREATE", "User", u.id, f"email={email}, role={role}", user=user)
+    return RedirectResponse("/admin/users", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/toggle")
+def admin_users_toggle(
+    request: Request,
+    user_id: int,
+    user: User = Depends(require_roles(Role.ADMIN)),
+    db: Session = Depends(db_session),
+):
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(404, "User not found")
+    if u.id == user.id:
+        raise HTTPException(400, "Нельзя отключить самого себя")
+    u.is_active = not u.is_active
+    db.commit()
+    audit(db, request, "USER_TOGGLE_ACTIVE", "User", u.id, f"is_active={u.is_active}", user=user)
+    return RedirectResponse("/admin/users", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/role")
+def admin_users_set_role(
+    request: Request,
+    user_id: int,
+    role: str = Form(...),
+    user: User = Depends(require_roles(Role.ADMIN)),
+    db: Session = Depends(db_session),
+):
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(404, "User not found")
+    role = role.strip().upper()
+    if role not in (Role.ADMIN, Role.BUYER, Role.VIEWER):
+        raise HTTPException(400, "Некорректная роль")
+    u.role = role
+    db.commit()
+    audit(db, request, "USER_SET_ROLE", "User", u.id, f"role={role}", user=user)
+    return RedirectResponse("/admin/users", status_code=303)
+
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -920,7 +1074,7 @@ async def request_attachment_upload(
         kind="REQUEST",
         request_id=req.id,
         original_name=file.filename or "file",
-        stored_path=f"/uploads/{stored_name}",
+        stored_path=stored_name,
         content_type=file.content_type or "",
         size_bytes=len(data),
     )
@@ -970,6 +1124,15 @@ def round_create(
     db.add(rnd)
     db.commit()
     db.refresh(rnd)
+    # participants default = category suppliers
+    cat = db.get(Category, req.category_id)
+    default_suppliers = [s for s in (cat.suppliers if cat else []) if s.status == SupplierStatus.ACTIVE]
+
+    for s in default_suppliers:
+        exists = db.scalar(select(RoundSupplier).where(RoundSupplier.round_id == rnd.id, RoundSupplier.supplier_id == s.id))
+        if not exists:
+            db.add(RoundSupplier(round_id=rnd.id, supplier_id=s.id))
+    db.commit()
 
     # Обновление статуса заявки
     if rn == 1:
@@ -1022,11 +1185,13 @@ def round_send_invites(
     cat = db.get(Category, req.category_id)
 
     # suppliers by category (FR-10)
-    suppliers = cat.suppliers if cat else []
+    participants = db.scalars(select(RoundSupplier).where(RoundSupplier.round_id == rnd.id)).all()
+    supplier_ids = [p.supplier_id for p in participants]
+    suppliers = db.scalars(select(Supplier).where(Supplier.id.in_(supplier_ids))).all()
     suppliers = [s for s in suppliers if s.status == SupplierStatus.ACTIVE]
 
     if not suppliers:
-        raise HTTPException(400, "В категории нет активных поставщиков")
+        raise HTTPException(400, "В раунде нет активных участников (задай участников раунда)")
 
     sent_count = 0
     for s in suppliers:
@@ -1075,6 +1240,34 @@ def round_send_invites(
     return RedirectResponse(f"/requests/{req.id}?tab=rounds", status_code=303)
 
 
+@app.post("/rounds/{round_id}/participants/set")
+def round_participants_set(
+    request: Request,
+    round_id: int,
+    supplier_ids: str = Form(""),
+    user: User = Depends(require_roles(Role.ADMIN, Role.BUYER)),
+    db: Session = Depends(db_session),
+):
+    rnd = db.get(Round, round_id)
+    if not rnd:
+        raise HTTPException(404, "Round not found")
+
+    ids = [int(x) for x in re.findall(r"\d+", supplier_ids or "")]
+    # очистить старых
+    db.query(RoundSupplier).where(RoundSupplier.round_id == rnd.id).delete()
+    db.commit()
+
+    if ids:
+        valid = db.scalars(select(Supplier).where(Supplier.id.in_(ids))).all()
+        for s in valid:
+            if s.status == SupplierStatus.ACTIVE:
+                db.add(RoundSupplier(round_id=rnd.id, supplier_id=s.id))
+        db.commit()
+
+    audit(db, request, "ROUND_PARTICIPANTS_SET", "Round", rnd.id, f"ids={ids}", user=user)
+    return RedirectResponse(f"/requests/{rnd.request_id}?tab=rounds", status_code=303)
+
+
 # -----------------------------
 # Public supplier form (token link)
 # -----------------------------
@@ -1109,6 +1302,13 @@ def public_offer_form(
     cat = db.get(Category, req.category_id)
     supplier = db.get(Supplier, inv.supplier_id)
 
+    # ✅ ВСЕГДА определяем вложения заявки
+    request_attachments = db.scalars(
+        select(Attachment)
+        .where(Attachment.kind == "REQUEST", Attachment.request_id == req.id)
+        .order_by(Attachment.created_at.desc())
+    ).all()
+
     close_round_if_deadline_passed(db, rnd)
     if not round_is_open(rnd):
         inv.status = InvitationStatus.EXPIRED
@@ -1120,7 +1320,8 @@ def public_offer_form(
             "supplier": supplier,
             "req": req,
             "rnd": rnd,
-            "cat": cat
+            "cat": cat,
+            "request_attachments": request_attachments,
         }, status_code=400)
 
     if inv.opened_at is None:
@@ -1129,7 +1330,9 @@ def public_offer_form(
             inv.status = InvitationStatus.OPENED
         db.commit()
 
-    items = db.scalars(select(RequestItem).where(RequestItem.request_id == req.id).order_by(RequestItem.pos_no.asc())).all()
+    items = db.scalars(
+        select(RequestItem).where(RequestItem.request_id == req.id).order_by(RequestItem.pos_no.asc())
+    ).all()
     existing_offer = get_round_offer(db, rnd.id, supplier.id)
 
     prev_offer = get_previous_round_offer(db, req.id, rnd.number, supplier.id)
@@ -1138,7 +1341,6 @@ def public_offer_form(
         prev_items = db.scalars(select(OfferItem).where(OfferItem.offer_id == prev_offer.id)).all()
         prev_map = {x.request_item_id: x for x in prev_items}
 
-    # map existing offer items
     cur_map = {}
     if existing_offer:
         cur_items = db.scalars(select(OfferItem).where(OfferItem.offer_id == existing_offer.id)).all()
@@ -1157,7 +1359,8 @@ def public_offer_form(
         "cur_map": cur_map,
         "prev_offer": prev_offer,
         "prev_map": prev_map,
-        "require_all_positions": True,  # по умолчанию как в ТЗ (FR-22)
+        "require_all_positions": True,
+        "request_attachments": request_attachments,
     })
 
 
@@ -1279,7 +1482,7 @@ async def public_offer_submit(
             kind="OFFER",
             offer_id=offer.id,
             original_name=attachment.filename or "file",
-            stored_path=f"/uploads/{stored_name}",
+            stored_path=stored_name,
             content_type=attachment.content_type or "",
             size_bytes=len(data),
         )
@@ -1686,11 +1889,106 @@ def init_admin():
         print("Password:", admin_password)
 
 
+def create_user_cli(email: str, password: str, role: str, name: str = ""):
+    Base.metadata.create_all(engine)
+
+    email = (email or "").strip().lower()
+    name = (name or "").strip()
+    role = (role or "").strip().upper()
+
+    if role not in (Role.ADMIN, Role.BUYER, Role.VIEWER):
+        raise SystemExit(f"Invalid role: {role}. Use ADMIN, BUYER, VIEWER")
+
+    if len(password.encode("utf-8")) > 72:
+        raise SystemExit("Password too long for bcrypt (must be <= 72 bytes). Use shorter password.")
+
+    with Session(engine) as db:
+        existing = db.scalar(select(User).where(User.email == email))
+        if existing:
+            raise SystemExit(f"User already exists: {email}")
+
+        u = User(
+            email=email,
+            name=name,
+            password_hash=hash_password(password),
+            role=role,
+            is_active=True,
+        )
+        db.add(u)
+        db.commit()
+        print("User created:", email, "role=", role)
+
+
+def send_reminders_cli(hours_before: int = 24, cooldown_hours: int = 12):
+    Base.metadata.create_all(engine)
+    cutoff = now_utc() + timedelta(hours=hours_before)
+    cooldown = now_utc() - timedelta(hours=cooldown_hours)
+
+    with Session(engine) as db:
+        # open rounds, deadline soon
+        rounds = db.scalars(
+            select(Round)
+            .where(Round.is_closed == False, Round.deadline_at <= cutoff, Round.deadline_at >= now_utc())
+        ).all()
+
+        sent = 0
+        for rnd in rounds:
+            req = db.get(PurchaseRequest, rnd.request_id)
+
+            invs = db.scalars(
+                select(Invitation).where(
+                    Invitation.round_id == rnd.id,
+                    Invitation.status.in_([InvitationStatus.SENT, InvitationStatus.OPENED]),
+                    (Invitation.reminded_at.is_(None)) | (Invitation.reminded_at < cooldown),
+                )
+            ).all()
+
+            for inv in invs:
+                supplier = db.get(Supplier, inv.supplier_id)
+                emails = [e.strip() for e in (supplier.emails or "").split(",") if e.strip()]
+                if not emails:
+                    continue
+
+                # генерим новый токен (мы не храним исходный), обновляем hash
+                token = secrets.token_urlsafe(32)
+                inv.token_hash = token_hash(token)
+                link = make_public_link(token)
+
+                subj, body = build_reminder_email(req, rnd, link)
+                for e in emails:
+                    send_email_smtp(e, subj, body)
+
+                # записываем reminded_at (через raw SQL, раз колонка добавлена ALTER-ом)
+                inv.reminded_at = now_utc()
+                db.commit()
+                sent += 1
+
+        print("Reminders sent:", sent)
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--init-admin", action="store_true")
+
+    parser.add_argument("--create-user", action="store_true")
+    parser.add_argument("--email", type=str, default="")
+    parser.add_argument("--password", type=str, default="")
+    parser.add_argument("--role", type=str, default=Role.VIEWER)
+    parser.add_argument("--name", type=str, default="")
+    parser.add_argument("--send-reminders", action="store_true")
+    parser.add_argument("--reminder-hours", type=int, default=24)
+
     args = parser.parse_args()
+
     if args.init_admin:
         init_admin()
+    elif args.create_user:
+        if not args.email or not args.password:
+            raise SystemExit("Usage: --create-user --email ... --password ... [--role ADMIN|BUYER|VIEWER] [--name ...]")
+        create_user_cli(email=args.email, password=args.password, role=args.role, name=args.name)
+    elif args.send_reminders:
+        send_reminders_cli(hours_before=args.reminder_hours)
     else:
         print("Run with: uvicorn app:app --reload")
+

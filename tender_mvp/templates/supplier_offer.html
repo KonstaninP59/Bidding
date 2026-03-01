@@ -138,6 +138,23 @@
             </button>
           </div>
 
+            <div class="mt-4">
+                <div class="text-sm font-medium">Вложения заявки</div>
+                <div class="mt-2 space-y-2">
+                    {% for a in (request_attachments | default([])) %}
+                    <a class="block p-3 rounded-xl border border-slate-200 hover:bg-slate-50"
+                        href="/attachments/{{a.id}}/download?token={{token}}" target="_blank">
+                        <div class="text-sm font-medium">{{ a.original_name }}</div>
+                        <div class="text-xs muted">{{ a.size_bytes }} bytes</div>
+                    </a>
+                    {% endfor %}
+                    {% if not request_attachments %}
+                    <div class="text-sm muted">Нет вложений</div>
+                    {% endif %}
+                </div>
+            </div>
+
+
           <div class="text-xs muted">
             После дедлайна отправка запрещена (FR-13). Токен хранится в БД в виде хеша.
           </div>
