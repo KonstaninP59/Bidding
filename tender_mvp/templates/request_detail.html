@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-start justify-between gap-4">
+  <div>
+    <div class="flex items-center gap-2">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ req.number }}</h1>
+      <span class="text-xs px-2 py-1 rounded-full badge bg-slate-50">{{ req.status }}</span>
+      <span class="text-xs px-2 py-1 rounded-full badge bg-slate-50">{{ cat.name if cat else "" }}</span>
+    </div>
+    <p class="muted mt-1">{{ req.subject }}</p>
+  </div>
+  <a href="/dashboard" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50">← К списку</a>
+</div>
+
+<div class="mt-4 p-4 rounded-2xl card bg-white">
+  <div class="flex flex-wrap gap-4 border-b border-slate-100 pb-3">
+    {% set tabs = [
+      ("details","Детали"),
+      ("spec","Спецификация"),
+      ("rounds","Раунды"),
+      ("offers","Предложения"),
+      ("docs","Документы"),
+      ("reports","Отчёты"),
+      ("history","История")
+    ] %}
+    {% for key,label in tabs %}
+      <a href="/requests/{{ req.id }}?tab={{ key }}{% if selected_round_id %}&round_id={{ selected_round_id }}{% endif %}"
+         class="px-2 py-1 text-sm {% if tab==key %}tab-active{% else %}muted hover:text-slate-900{% endif %}">
+        {{ label }}
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if tab=="details" %}
+    <div class="mt-4 grid md:grid-cols-2 gap-4">
+      <div class="p-4 rounded-xl border border-slate-200">
+        <div class="text-sm muted">Описание</div>
+        <div class="mt-2 text-sm whitespace-pre-wrap">{{ req.description or "—" }}</div>
+      </div>
+      <div class="p-4 rounded-xl border border-slate-200 space-y-2">
+        <div class="text-sm muted">Параметры</div>
+        <div class="text-sm">Валюта: <b>{{ req.currency }}</b></div>
+        <div class="text-sm">НДС: <b>{{ req.vat_mode }}</b></div>
+        <div class="text-sm">Оплата: <b>{{ req.payment_terms or "—" }}</b></div>
+        <div class="text-sm">Поставка: <b>{{ req.delivery_terms or "—" }}</b></div>
+      </div>
+    </div>
+
+  {% elif tab=="spec" %}
+    <div class="mt-4 grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-left text-slate-600">
+            <tr>
+              <th class="py-2">№</th>
+              <th>Наименование</th>
+              <th class="text-right">Кол-во</th>
+              <th>Ед.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in items %}
+              <tr class="border-t border-slate-100">
+                <td class="py-2 muted">{{ it.pos_no }}</td>
+                <td>
+                  <div class="font-medium">{{ it.name }}</div>
+                  <div class="text-xs muted truncate">{{ it.description }}</div>
+                </td>
+                <td class="text-right">{{ "%.3f"|format(it.qty) }}</td>
+                <td>{{ it.uom }}</td>
+              </tr>
+            {% endfor %}
+            {% if not items %}
+              <tr><td colspan="4" class="py-6 text-center muted">Позиции отсутствуют</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="space-y-4">
+        {% if user.role in ["ADMIN","BUYER"] %}
+        <div class="p-4 rounded-xl border border-slate-200">
+          <h3 class="font-semibold">Добавить позицию</h3>
+          <form method="post" action="/requests/{{ req.id }}/items/add" class="mt-3 space-y-2">
+            <input name="name" required placeholder="Наименование" class="w-full px-3 py-2 rounded-xl border border-slate-200">
+            <input name="description" placeholder="Описание" class="w-full px-3 py-2 rounded-xl border border-slate-200">
+            <div class="grid grid-cols-2 gap-2">
+              <input name="qty" type="number" step="0.001" required placeholder="Кол-во" class="w-full px-3 py-2 rounded-xl border border-slate-200">
+              <input name="uom" value="шт" placeholder="Ед." class="w-full px-3 py-2 rounded-xl border border-slate-200">
+            </div>
+            <button class="w-full px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Добавить</button>
+          </form>
+        </div>
+
+        <div class="p-4 rounded-xl border border-slate-200">
+          <h3 class="font-semibold">Импорт XLSX</h3>
+          <p class="text-xs muted mt-1">Колонки: Наименование*, Количество*, Ед.изм.* (+ Описание)</p>
+          <form method="post" action="/requests/{{ req.id }}/items/import_xlsx" enctype="multipart/form-data" class="mt-3 space-y-2">
+            <input type="file" name="xlsx" accept=".xlsx" required class="w-full text-sm">
+            <button class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">Импортировать</button>
+          </form>
+        </div>
+        {% else %}
+          <div class="p-4 rounded-xl border border-slate-200 text-sm muted">Редактирование спецификации доступно только ADMIN/BUYER</div>
+        {% endif %}
+      </div>
+    </div>
+
+  {% elif tab=="rounds" %}
+    <div class="mt-4 grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2">
+        <div class="space-y-3">
+          {% for r in rounds %}
+            <div class="p-4 rounded-xl border border-slate-200">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="font-semibold">Раунд {{ r.number }} <span class="text-xs muted">({{ r.type }})</span></div>
+                  <div class="text-sm muted mt-1">
+                    Дедлайн: {{ r.deadline_at.strftime("%Y-%m-%d %H:%M") }} ·
+                    Статус: <b>{{ "закрыт" if r.is_closed else "открыт" }}</b>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <a class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm"
+                     href="/requests/{{ req.id }}?tab=offers&round_id={{ r.id }}">Предложения</a>
+                  {% if user.role in ["ADMIN","BUYER"] %}
+                    <form method="post" action="/rounds/{{ r.id }}/send_invites">
+                      <button class="px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm">Отправить приглашения</button>
+                    </form>
+                    <form method="post" action="/rounds/{{ r.id }}/close">
+                      <button class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Закрыть</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </div>
+              {% if r.comment_to_suppliers %}
+                <div class="mt-3 text-sm whitespace-pre-wrap">{{ r.comment_to_suppliers }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+          {% if not rounds %}
+            <div class="p-6 rounded-xl border border-slate-200 text-center muted">Раунды ещё не созданы</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="p-4 rounded-xl border border-slate-200">
+        <h3 class="font-semibold">Создать раунд</h3>
+        {% if user.role not in ["ADMIN","BUYER"] %}
+          <div class="mt-3 text-sm muted">Доступно только ADMIN/BUYER</div>
+        {% else %}
+        <form method="post" action="/requests/{{ req.id }}/rounds/create" class="mt-3 space-y-2">
+          <label class="text-sm muted">Тип</label>
+          <select name="type_value" class="w-full px-3 py-2 rounded-xl border border-slate-200">
+            <option value="INITIAL">INITIAL</option>
+            <option value="NEGOTIATION">NEGOTIATION</option>
+          </select>
+          <label class="text-sm muted">Дедлайн (UTC)</label>
+          <input name="deadline_at" type="datetime-local" required class="w-full px-3 py-2 rounded-xl border border-slate-200">
+          <label class="text-sm muted">Комментарий поставщикам</label>
+          <textarea name="comment_to_suppliers" rows="4" class="w-full px-3 py-2 rounded-xl border border-slate-200"></textarea>
+          <button class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">Создать</button>
+          <div class="text-xs muted">Поставщики берутся из категории автоматически (FR-10).</div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+  {% elif tab=="offers" %}
+    <div class="mt-4">
+      {% if rounds %}
+        <form method="get" action="/requests/{{ req.id }}" class="flex flex-wrap gap-2 items-center">
+          <input type="hidden" name="tab" value="offers">
+          <label class="text-sm muted">Раунд:</label>
+          <select name="round_id" class="px-3 py-2 rounded-xl border border-slate-200">
+            {% for r in rounds %}
+              <option value="{{ r.id }}" {% if selected_round_id==r.id %}selected{% endif %}>{{ r.number }} ({{ r.type }})</option>
+            {% endfor %}
+          </select>
+          <button class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Показать</button>
+        </form>
+      {% endif %}
+
+      <div class="grid lg:grid-cols-3 gap-4 mt-4">
+        <div class="lg:col-span-2 p-4 rounded-xl border border-slate-200 overflow-x-auto">
+          <h3 class="font-semibold">Сравнение (таблично)</h3>
+          {% if compare %}
+            <div class="mt-3 overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead class="text-left text-slate-600">
+                  <tr>
+                    <th class="py-2">Поставщик</th>
+                    <th class="text-right">Итог</th>
+                    <th class="text-right">Позиции</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for o in offers %}
+                    <tr class="border-t border-slate-100">
+                      <td class="py-2">{{ o.supplier.name if o.supplier else o.supplier_id }}</td>
+                      <td class="text-right font-medium">{{ "%.2f"|format(o.total_amount or 0) }} {{ req.currency }}</td>
+                      <td class="text-right muted">{{ o.items|length }}</td>
+                    </tr>
+                  {% endfor %}
+                  {% if not offers %}
+                    <tr><td colspan="3" class="py-6 text-center muted">Пока нет предложений</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="mt-5">
+              <h4 class="font-semibold">Матрица цен по позициям (подсветка лучших)</h4>
+              <div class="mt-2 overflow-x-auto">
+                <table class="text-xs min-w-[900px]">
+                  <thead class="text-left text-slate-600">
+                    <tr>
+                      <th class="py-2 pr-2">№</th>
+                      <th class="pr-4">Позиция</th>
+                      {% for row in compare.rows %}
+                        <th class="pr-3">{{ row.supplier.name }}</th>
+                      {% endfor %}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for it in compare.items %}
+                      <tr class="border-t border-slate-100">
+                        <td class="py-2 pr-2 muted">{{ it.pos_no }}</td>
+                        <td class="pr-4 truncate max-w-[320px]">{{ it.name }}</td>
+                        {% for row in compare.rows %}
+                          {% set oi = row.items.get(it.id) %}
+                          {% set best = compare.best_unit_price.get(it.id) %}
+                          {% if not oi %}
+                            <td class="pr-3 muted">—</td>
+                          {% elif oi.not_supply %}
+                            <td class="pr-3 muted">не поставляем</td>
+                          {% else %}
+                            {% set val = oi.unit_price %}
+                            <td class="pr-3 {% if best is not none and (val|float)==(best|float) %}bg-green-50 text-green-800 font-semibold rounded{% endif %}">
+                              {{ "%.2f"|format(val) }}
+                            </td>
+                          {% endif %}
+                        {% endfor %}
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="p-4 rounded-xl border border-slate-200">
+          <h3 class="font-semibold">Решение</h3>
+          {% if user.role not in ["ADMIN","BUYER"] %}
+            <div class="mt-2 text-sm muted">Выбор победителя доступен ADMIN/BUYER</div>
+          {% else %}
+            <form method="post" action="/requests/{{ req.id }}/decision" class="mt-3 space-y-2">
+              <input type="hidden" name="round_id" value="{{ selected_round_id }}">
+              <label class="text-sm muted">Победитель (supplier_id)</label>
+              <input name="winner_supplier_id" type="number" required class="w-full px-3 py-2 rounded-xl border border-slate-200">
+              <label class="text-sm muted">Причина</label>
+              <textarea name="reason" rows="3" class="w-full px-3 py-2 rounded-xl border border-slate-200"></textarea>
+              <button class="w-full px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Зафиксировать</button>
+              <div class="text-xs muted">В MVP решение фиксируется в аудите + статус заявки → DECISION.</div>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  {% elif tab=="docs" %}
+    <div class="mt-4 grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 p-4 rounded-xl border border-slate-200">
+        <h3 class="font-semibold">Вложения заявки</h3>
+        <div class="mt-3 space-y-2">
+          {% for a in attachments %}
+            <a class="block p-3 rounded-xl border border-slate-200 hover:bg-slate-50"
+               href="{{ a.stored_path }}" target="_blank">
+              <div class="text-sm font-medium">{{ a.original_name }}</div>
+              <div class="text-xs muted">{{ a.size_bytes }} bytes · {{ a.created_at.strftime("%Y-%m-%d %H:%M") }}</div>
+            </a>
+          {% endfor %}
+          {% if not attachments %}
+            <div class="text-sm muted">Нет вложений</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="p-4 rounded-xl border border-slate-200">
+        <h3 class="font-semibold">Загрузить файл</h3>
+        {% if user.role not in ["ADMIN","BUYER"] %}
+          <div class="mt-2 text-sm muted">Доступно только ADMIN/BUYER</div>
+        {% else %}
+          <form method="post" action="/requests/{{ req.id }}/attachments/upload" enctype="multipart/form-data" class="mt-3 space-y-2">
+            <input type="file" name="file" required class="w-full text-sm">
+            <button class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">Загрузить</button>
+            <div class="text-xs muted">Лимит: {{ 50 }}MB</div>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+  {% elif tab=="reports" %}
+    <div class="mt-4 grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 p-4 rounded-xl border border-slate-200">
+        <h3 class="font-semibold">Снимки документов (PDF/XLSX)</h3>
+        <div class="mt-3 space-y-2">
+          {% for r in reports %}
+            <div class="p-3 rounded-xl border border-slate-200">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <div class="text-sm font-medium">{{ r.kind }} · {{ r.filename }}</div>
+                  <div class="text-xs muted">Раунд ID {{ r.round_id }} · {{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</div>
+                </div>
+                <a href="/reports/{{ r.id }}/download" class="px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm">Скачать</a>
+              </div>
+            </div>
+          {% endfor %}
+          {% if not reports %}
+            <div class="text-sm muted">Документов пока нет</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="p-4 rounded-xl border border-slate-200">
+        <h3 class="font-semibold">Сформировать</h3>
+        {% if not rounds %}
+          <div class="mt-2 text-sm muted">Сначала создайте раунд</div>
+        {% else %}
+          <form method="post" action="/requests/{{ req.id }}/reports/generate" class="mt-3 space-y-2">
+            <label class="text-sm muted">Раунд для сравнения (обычно последний)</label>
+            <select name="round_id" class="w-full px-3 py-2 rounded-xl border border-slate-200">
+              {% for r in rounds %}
+                <option value="{{ r.id }}" {% if selected_round_id==r.id %}selected{% endif %}>Раунд {{ r.number }}</option>
+              {% endfor %}
+            </select>
+            <button class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">Сгенерировать PDF + XLSX</button>
+            <div class="text-xs muted">Сохраняется как снимок (FR-30).</div>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+  {% elif tab=="history" %}
+    <div class="mt-4 p-4 rounded-xl border border-slate-200">
+      <h3 class="font-semibold">Аудит</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="text-left text-slate-600">
+            <tr>
+              <th class="py-2">Время</th>
+              <th>IP</th>
+              <th>Действие</th>
+              <th>Детали</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in audit_logs %}
+              <tr class="border-t border-slate-100">
+                <td class="py-2 muted">{{ a.at.strftime("%Y-%m-%d %H:%M") }}</td>
+                <td class="muted">{{ a.ip }}</td>
+                <td class="font-medium">{{ a.action }}</td>
+                <td class="muted">{{ a.details }}</td>
+              </tr>
+            {% endfor %}
+            {% if not audit_logs %}
+              <tr><td colspan="4" class="py-6 text-center muted">Пусто</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

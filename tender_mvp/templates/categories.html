@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-start justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Категории</h1>
+    <p class="muted mt-1">FR-01</p>
+  </div>
+  <a href="/dashboard" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50">← Назад</a>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-4 mt-4">
+  <div class="lg:col-span-2 p-5 rounded-2xl card bg-white">
+    <table class="w-full text-sm">
+      <thead class="text-left text-slate-600">
+        <tr>
+          <th class="py-2">Название</th>
+          <th>Настройки формы КП</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cats %}
+        <tr class="border-t border-slate-100">
+          <td class="py-2">
+            <div class="font-medium">{{ c.name }}</div>
+            <div class="text-xs muted">{{ c.description }}</div>
+          </td>
+          <td class="text-xs">
+            <div class="muted">Оплата обязательна: <b>{{ "да" if c.require_payment_terms else "нет" }}</b></div>
+            <div class="muted">Флаг "не поставляем": <b>{{ "да" if c.allow_not_supply else "нет" }}</b></div>
+            <div class="muted">Запрет повышения цены: <b>{{ "да" if c.forbid_price_increase else "нет" }}</b></div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not cats %}
+          <tr><td colspan="2" class="py-6 text-center muted">Категорий пока нет</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="p-5 rounded-2xl card bg-white">
+    <h2 class="font-semibold">Новая категория</h2>
+    {% if user.role != "ADMIN" %}
+      <div class="mt-3 text-sm muted">Создавать категории может только ADMIN</div>
+    {% else %}
+      <form class="mt-4 space-y-3" method="post" action="/categories/new">
+        <div>
+          <label class="text-sm muted">Название</label>
+          <input name="name" required class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200">
+        </div>
+        <div>
+          <label class="text-sm muted">Описание</label>
+          <textarea name="description" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200" rows="3"></textarea>
+        </div>
+
+        <div class="space-y-2">
+          <label class="flex gap-2 items-center text-sm">
+            <input type="checkbox" name="require_payment_terms" class="rounded">
+            <span>Условия оплаты обязательны</span>
+          </label>
+          <label class="flex gap-2 items-center text-sm">
+            <input type="checkbox" name="allow_not_supply" class="rounded" checked>
+            <span>Разрешить “не поставляем”</span>
+          </label>
+          <label class="flex gap-2 items-center text-sm">
+            <input type="checkbox" name="forbid_price_increase" class="rounded" checked>
+            <span>Запретить повышение цены в переторжке</span>
+          </label>
+        </div>
+
+        <div>
+          <label class="text-sm muted">Поставщики по умолчанию (ID через запятую)</label>
+          <input name="supplier_ids" placeholder="Напр.: 1,2,3" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200">
+          <div class="text-xs muted mt-1">Подсказка: IDs смотри на странице “Поставщики”.</div>
+        </div>
+
+        <button class="w-full px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Создать</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

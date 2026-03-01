@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid md:grid-cols-2 gap-8 items-center">
+  <div class="p-8 rounded-2xl glass card">
+    <h1 class="text-2xl font-semibold tracking-tight">Вход во внутренний портал</h1>
+    <p class="mt-2 muted">Админ / Закупщик / Наблюдатель</p>
+
+    {% if error %}
+      <div class="mt-4 p-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form method="post" action="/login" class="mt-6 space-y-4">
+      <div>
+        <label class="text-sm muted">Email</label>
+        <input name="email" type="email" required
+          class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200" />
+      </div>
+      <div>
+        <label class="text-sm muted">Пароль</label>
+        <input name="password" type="password" required
+          class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200" />
+      </div>
+      <button class="w-full px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
+        Войти
+      </button>
+    </form>
+
+    <div class="mt-6 text-xs muted">
+      Первый админ создаётся командой: <code class="px-1 py-0.5 bg-slate-100 rounded">python app.py --init-admin</code>
+    </div>
+  </div>
+
+  <div class="p-8 rounded-2xl card bg-white">
+    <h2 class="text-xl font-semibold tracking-tight">Что умеет MVP</h2>
+    <ul class="mt-4 space-y-2 text-sm muted list-disc pl-5">
+      <li>Заявка + позиции (в т.ч. импорт XLSX)</li>
+      <li>Раунд 1 и Раунд 2 (переторжка)</li>
+      <li>Приглашения по email с уникальной ссылкой</li>
+      <li>Форма поставщика без логина</li>
+      <li>Сравнение предложений</li>
+      <li>PDF с графиками и XLSX с вкладками</li>
+      <li>Аудит действий</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
