@@ -1,26 +1,32 @@
 import os
 import shutil
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 from uuid import uuid4
+from app.config import settings
 
-UPLOAD_DIR = "uploads"
+async def validate_file(file: UploadFile):
+    # Проверка размера
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > settings.MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"File too large. Max size: {settings.MAX_FILE_SIZE} bytes")
+    
+    # Проверка расширения
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in settings.ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type {ext} not allowed")
 
-def save_upload_file(upload_file: UploadFile, subfolder: str = "common") -> str:
-    """
-    Сохраняет загруженный файл на диск и возвращает путь к нему.
-    Имя файла заменяется на UUID, чтобы избежать дубликатов и проблем с кириллицей.
-    """
-    # Создаем папку, если нет
-    directory = os.path.join(UPLOAD_DIR, subfolder)
+async def save_upload_file(upload_file: UploadFile, subfolder: str = "common") -> str:
+    directory = os.path.join(settings.UPLOAD_DIR, subfolder)
     os.makedirs(directory, exist_ok=True)
     
-    # Генерируем уникальное имя
     extension = os.path.splitext(upload_file.filename)[1]
     unique_filename = f"{uuid4()}{extension}"
     file_path = os.path.join(directory, unique_filename)
     
-    # Сохраняем
+    # Сохраняем файл асинхронно
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(upload_file.file, buffer)
-        
+    
     return file_path

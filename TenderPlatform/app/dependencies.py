@@ -5,11 +5,9 @@ from sqlalchemy.orm import Session
 from app import database, models, schemas
 from app.config import settings
 
-# Указываем, откуда брать токен (из URL /token)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 def get_db():
-    """Получение сессии базы данных"""
     db = database.SessionLocal()
     try:
         yield db
@@ -17,10 +15,6 @@ def get_db():
         db.close()
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    """
-    Проверяет токен и возвращает текущего пользователя.
-    Если токен неверный или истек - ошибка 401.
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -46,7 +40,6 @@ def get_current_active_user(current_user: models.User = Depends(get_current_user
     return current_user
 
 def get_current_admin(current_user: models.User = Depends(get_current_active_user)):
-    """Проверка, что пользователь - Админ"""
     if current_user.role != models.UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Not enough privileges")
     return current_user

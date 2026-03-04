@@ -2,21 +2,18 @@ from app.config import settings
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import logging
+
+logger = logging.getLogger(__name__)
 
 def send_email(to_email: str, subject: str, body: str):
     """
-    Отправка email.
-    Если настроек SMTP нет или они неверные, просто выводим в консоль
-    (чтобы разработка не стопорилась).
+    Отправка email. Если SMTP не настроен, логирует.
     """
-    print(f"--- EMAIL MOCK ---")
-    print(f"To: {to_email}")
-    print(f"Subject: {subject}")
-    print(f"Body: {body}")
-    print(f"------------------")
+    if not settings.MAIL_USERNAME or not settings.MAIL_PASSWORD:
+        logger.info(f"Email not sent (no SMTP config): to={to_email}, subject={subject}")
+        return
 
-    # Раскомментируй этот блок для реальной отправки, когда будет SMTP
-    """
     try:
         message = MIMEMultipart()
         message["From"] = settings.MAIL_FROM
@@ -28,6 +25,6 @@ def send_email(to_email: str, subject: str, body: str):
             server.starttls()
             server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
             server.send_message(message)
+        logger.info(f"Email sent to {to_email}")
     except Exception as e:
-        print(f"Ошибка отправки email: {e}")
-    """
+        logger.error(f"Failed to send email to {to_email}: {e}")

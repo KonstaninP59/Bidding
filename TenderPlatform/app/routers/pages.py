@@ -1,44 +1,59 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Query
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app import models, database
+from app.dependencies import get_db
 
 router = APIRouter(tags=["Pages"])
 templates = Jinja2Templates(directory="app/templates")
 
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# Главная страница
 @router.get("/")
 def page_home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# Страница входа
 @router.get("/login")
 def page_login(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
-# Страница регистрации
 @router.get("/register")
 def page_register(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
 
-# Список тендеров
 @router.get("/tenders-list")
-def page_tenders_list(request: Request, db: Session = Depends(get_db)):
-    # Получаем все тендеры (в реальном проекте тут нужна пагинация)
-    tenders = db.query(models.Tender).filter(models.Tender.status == models.TenderStatus.PUBLISHED).all()
-    return templates.TemplateResponse("tenders_list.html", {"request": request, "tenders": tenders})
+def page_tenders_list(
+    request: Request,
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=50)
+):
+    # Пагинация
+    offset = (page - 1) * per_page
+    tenders = db.query(models.Tender).filter(
+        models.Tender.status == models.TenderStatus.PUBLISHED
+    ).order_by(models.Tender.created_at.desc()).offset(offset).limit(per_page).all()
+    
+    # Общее количество для пагинации
+    total = db.query(models.Tender).filter(models.Tender.status == models.TenderStatus.PUBLISHED).count()
+    
+    return templates.TemplateResponse("tenders_list.html", {
+        "request": request,
+        "tenders": tenders,
+        "page": page,
+        "per_page": per_page,
+        "total": total
+    })
 
-# Детальная страница тендера
 @router.get("/tender/{tender_id}")
 def page_tender_detail(tender_id: int, request: Request, db: Session = Depends(get_db)):
-    tender = db.query(models.Tender).filter(models.Tender.id == tender_id).first()
+    # Загружаем тендер со связанными данными
+    tender = db.query(models.Tender).options(
+        selectinload(models.Tender.items),
+        selectinload(models.Tender.criteria),
+        selectinload(models.Tender.rounds)
+    ).filter(models.Tender.id == tender_id).first()
+    
+    if not tender:
+        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
     
     # Находим активный раунд
     active_round = None
@@ -46,13 +61,11 @@ def page_tender_detail(tender_id: int, request: Request, db: Session = Depends(g
         if r.status == models.RoundStatus.ACTIVE:
             active_round = r
             break
-            
-    # Если активного нет, берем первый запланированный или последний завершенный
     if not active_round and tender.rounds:
-        active_round = tender.rounds[0]
+        active_round = tender.rounds[-1]  # последний по номеру
 
     return templates.TemplateResponse("tender_detail.html", {
-        "request": request, 
+        "request": request,
         "tender": tender,
         "active_round": active_round
     })

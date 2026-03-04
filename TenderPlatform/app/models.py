@@ -1,22 +1,23 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, Text, Enum, func
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, Text, Enum, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
 import enum
 from datetime import datetime
 
-# --- ENUMS (Справочники статусов из ТЗ) ---
-
+# --- ENUMS (без изменений) ---
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
-    CUSTOMER = "customer" # Заказчик
-    SUPPLIER = "supplier" # Поставщик
+    CUSTOMER = "customer"
+    SUPPLIER = "supplier"
+
 
 class SupplierStatus(str, enum.Enum):
-    DRAFT = "draft"             # Черновик
-    ON_CHECK = "on_check"       # На проверке
-    ACCREDITED = "accredited"   # Аккредитован
-    REJECTED = "rejected"       # Отказ
-    SUSPENDED = "suspended"     # Приостановлен
+    DRAFT = "draft"
+    ON_CHECK = "on_check"
+    ACCREDITED = "accredited"
+    REJECTED = "rejected"
+    SUSPENDED = "suspended"
+
 
 class TenderStatus(str, enum.Enum):
     DRAFT = "draft"
@@ -30,17 +31,19 @@ class RoundStatus(str, enum.Enum):
     ACTIVE = "active"
     COMPLETED = "completed"
 
+
 class ProposalStatus(str, enum.Enum):
     DRAFT = "draft"
     SENT = "sent"
-    FIXED = "fixed" # Зафиксировано после дедлайна
+    FIXED = "fixed"
     DISQUALIFIED = "disqualified"
 
+
 class CriterionType(str, enum.Enum):
-    NUMERIC_MIN = "numeric_min" # Цена, Срок (чем меньше, тем лучше)
-    NUMERIC_MAX = "numeric_max" # Гарантия (чем больше, тем лучше)
-    CATEGORICAL = "categorical" # Выбор из списка
-    MANUAL = "manual"           # Ручная оценка
+    NUMERIC_MIN = "numeric_min"
+    NUMERIC_MAX = "numeric_max"
+    CATEGORICAL = "categorical"
+    MANUAL = "manual"
 
 # --- ТАБЛИЦЫ ---
 
@@ -53,36 +56,29 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.SUPPLIER)
     
     full_name = Column(String, nullable=True)
-    position = Column(String, nullable=True) # Должность
+    position = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     
-    # Связь с компанией (один юзер принадлежит одной компании/поставщику)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     company = relationship("Company", back_populates="users")
 
-    # Для аудита
     audit_logs = relationship("AuditLog", back_populates="user")
 
 
 class Company(Base):
-    """
-    Сущность для Поставщика или Организации Заказчика.
-    """
     __tablename__ = "companies"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    inn = Column(String, index=True, nullable=True) # ИНН
+    inn = Column(String, index=True, nullable=True)
     kpp = Column(String, nullable=True)
     address = Column(String, nullable=True)
     
-    # Статус аккредитации (важно для поставщиков)
     accreditation_status = Column(Enum(SupplierStatus), default=SupplierStatus.DRAFT)
-    accreditation_comment = Column(Text, nullable=True) # Комментарий админа при отказе
+    accreditation_comment = Column(Text, nullable=True)
 
     users = relationship("User", back_populates="company")
-    # Файлы аккредитации
     documents = relationship("CompanyDocument", back_populates="company")
 
 
@@ -92,7 +88,7 @@ class CompanyDocument(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"))
     file_path = Column(String, nullable=False)
-    file_type = Column(String, nullable=True) # Устав, Выписка и т.д.
+    file_type = Column(String, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     
     company = relationship("Company", back_populates="documents")
@@ -106,123 +102,132 @@ class Tender(Base):
     description = Column(Text, nullable=True)
     currency = Column(String, default="RUB")
     
-    # Настройки
-    has_lots = Column(Boolean, default=False) # С лотами или без
-    is_vendor_rank_visible = Column(Boolean, default=False) # Видит ли поставщик свое место
+    has_lots = Column(Boolean, default=False)
+    is_vendor_rank_visible = Column(Boolean, default=False)
     
     status = Column(Enum(TenderStatus), default=TenderStatus.DRAFT)
     created_at = Column(DateTime, default=datetime.utcnow)
-    owner_id = Column(Integer, ForeignKey("users.id")) # Кто создал (Заказчик)
+    owner_id = Column(Integer, ForeignKey("users.id"))
 
     # Связи
-    items = Column(Text, nullable=True) # Если без лотов, позиции могут быть тут или в items (упростим: всегда используем таблицу TenderItem)
-    rounds = relationship("TenderRound", back_populates="tender", order_by="TenderRound.round_number")
-    criteria = relationship("TenderCriterion", back_populates="tender")
-    invitations = relationship("TenderInvitation", back_populates="tender")
+    items = relationship("TenderItem", back_populates="tender", cascade="all, delete-orphan")
+    rounds = relationship("TenderRound", back_populates="tender", order_by="TenderRound.round_number", cascade="all, delete-orphan")
+    criteria = relationship("TenderCriterion", back_populates="tender", cascade="all, delete-orphan")
+    invitations = relationship("TenderInvitation", back_populates="tender", cascade="all, delete-orphan")
     
-    # Для аналитики
-    winner_proposal_id = Column(Integer, nullable=True) # ID победившего предложения
-    winner_justification = Column(Text, nullable=True) # Обоснование выбора
+    winner_proposal_id = Column(Integer, nullable=True)
+    winner_justification = Column(Text, nullable=True)
+
+    # Индексы для часто запрашиваемых полей
+    __table_args__ = (
+        Index('ix_tenders_status', 'status'),
+    )
 
 
 class TenderItem(Base):
-    """Позиция в тендере (Товар/Услуга)"""
     __tablename__ = "tender_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    tender_id = Column(Integer, ForeignKey("tenders.id"))
+    tender_id = Column(Integer, ForeignKey("tenders.id", ondelete="CASCADE"))
     
     name = Column(String, nullable=False)
     quantity = Column(Float, nullable=False)
-    unit = Column(String, nullable=False) # Ед. измерения (шт, кг)
-    requirements = Column(Text, nullable=True) # Тех. требования
+    unit = Column(String, nullable=False)
+    requirements = Column(Text, nullable=True)
+
+    tender = relationship("Tender", back_populates="items")
 
 
 class TenderCriterion(Base):
-    """Критерии оценки"""
     __tablename__ = "tender_criteria"
 
     id = Column(Integer, primary_key=True, index=True)
-    tender_id = Column(Integer, ForeignKey("tenders.id"))
+    tender_id = Column(Integer, ForeignKey("tenders.id", ondelete="CASCADE"))
     
-    name = Column(String, nullable=False) # Цена, Срок поставки...
-    weight = Column(Float, nullable=False) # Вес % (сумма должна быть 100)
+    name = Column(String, nullable=False)
+    weight = Column(Float, nullable=False)  # в процентах
     criterion_type = Column(Enum(CriterionType), default=CriterionType.NUMERIC_MIN)
-    is_mandatory = Column(Boolean, default=False) # Обязательный (pass/fail)
+    is_mandatory = Column(Boolean, default=False)
     
     tender = relationship("Tender", back_populates="criteria")
+    proposal_values = relationship("ProposalValue", back_populates="criterion")
 
 
 class TenderRound(Base):
-    """Раунды переторжки"""
     __tablename__ = "tender_rounds"
 
     id = Column(Integer, primary_key=True, index=True)
-    tender_id = Column(Integer, ForeignKey("tenders.id"))
+    tender_id = Column(Integer, ForeignKey("tenders.id", ondelete="CASCADE"))
     
-    round_number = Column(Integer, nullable=False) # 1, 2, 3...
+    round_number = Column(Integer, nullable=False)
     start_time = Column(DateTime, default=datetime.utcnow)
-    end_time = Column(DateTime, nullable=False) # Дедлайн
+    end_time = Column(DateTime, nullable=False)
     
     status = Column(Enum(RoundStatus), default=RoundStatus.PLANNED)
     
     tender = relationship("Tender", back_populates="rounds")
-    proposals = relationship("Proposal", back_populates="round")
+    proposals = relationship("Proposal", back_populates="round", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('ix_rounds_end_time', 'end_time'),
+    )
 
 
 class TenderInvitation(Base):
-    """Приглашения поставщиков"""
     __tablename__ = "tender_invitations"
 
     id = Column(Integer, primary_key=True, index=True)
-    tender_id = Column(Integer, ForeignKey("tenders.id"))
+    tender_id = Column(Integer, ForeignKey("tenders.id", ondelete="CASCADE"))
     supplier_email = Column(String, nullable=False)
-    token = Column(String, unique=True, nullable=False) # Уникальная ссылка
-    is_used = Column(Boolean, default=False) # Использована ли ссылка
+    token = Column(String, unique=True, nullable=False)
+    is_used = Column(Boolean, default=False)
     
     tender = relationship("Tender", back_populates="invitations")
 
 
 class Proposal(Base):
-    """Предложение поставщика в конкретном раунде"""
     __tablename__ = "proposals"
 
     id = Column(Integer, primary_key=True, index=True)
-    round_id = Column(Integer, ForeignKey("tender_rounds.id"))
-    supplier_id = Column(Integer, ForeignKey("users.id")) # Поставщик
+    round_id = Column(Integer, ForeignKey("tender_rounds.id", ondelete="CASCADE"))
+    supplier_id = Column(Integer, ForeignKey("users.id"))
     
     status = Column(Enum(ProposalStatus), default=ProposalStatus.DRAFT)
-    final_score = Column(Float, nullable=True) # Итоговый балл Si
-    rank = Column(Integer, nullable=True) # Занятое место
+    final_score = Column(Float, nullable=True)
+    rank = Column(Integer, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    # Связи
     round = relationship("TenderRound", back_populates="proposals")
-    values = relationship("ProposalValue", back_populates="proposal") # Ответы на критерии
-    files = relationship("ProposalFile", back_populates="proposal")
+    values = relationship("ProposalValue", back_populates="proposal", cascade="all, delete-orphan")
+    files = relationship("ProposalFile", back_populates="proposal", cascade="all, delete-orphan")
+
+    # Ограничение: один поставщик может иметь только одно предложение на раунд
+    __table_args__ = (
+        Index('ix_proposals_round_supplier', 'round_id', 'supplier_id', unique=True),
+    )
 
 
 class ProposalValue(Base):
-    """Значение конкретного критерия в предложении (цена 100 руб, срок 5 дней)"""
     __tablename__ = "proposal_values"
 
     id = Column(Integer, primary_key=True, index=True)
-    proposal_id = Column(Integer, ForeignKey("proposals.id"))
-    criterion_id = Column(Integer, ForeignKey("tender_criteria.id"))
+    proposal_id = Column(Integer, ForeignKey("proposals.id", ondelete="CASCADE"))
+    criterion_id = Column(Integer, ForeignKey("tender_criteria.id", ondelete="CASCADE"))
     
-    value_numeric = Column(Float, nullable=True) # Если число
-    value_text = Column(Text, nullable=True)     # Если текст/комментарий
-    score_normalized = Column(Float, nullable=True) # Нормированный балл (0-100)
+    value_numeric = Column(Float, nullable=True)
+    value_text = Column(Text, nullable=True)
+    score_normalized = Column(Float, nullable=True)  # рассчитанный балл
     
     proposal = relationship("Proposal", back_populates="values")
+    criterion = relationship("TenderCriterion", back_populates="proposal_values")
 
 
 class ProposalFile(Base):
     __tablename__ = "proposal_files"
     
     id = Column(Integer, primary_key=True, index=True)
-    proposal_id = Column(Integer, ForeignKey("proposals.id"))
+    proposal_id = Column(Integer, ForeignKey("proposals.id", ondelete="CASCADE"))
     file_path = Column(String, nullable=False)
     file_name = Column(String, nullable=False)
     
@@ -230,14 +235,13 @@ class ProposalFile(Base):
 
 
 class AuditLog(Base):
-    """Журнал аудита"""
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    action = Column(String, nullable=False) # "Создание тендера", "Вход"
-    target_object = Column(String, nullable=True) # "Tender #1"
-    details = Column(Text, nullable=True) # JSON или текст изменений
+    action = Column(String, nullable=False)
+    target_object = Column(String, nullable=True)
+    details = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="audit_logs")
