@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card p-4">
+            <h3 class="text-center mb-4">Регистрация поставщика</h3>
+            <form id="registerForm">
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" id="reg-email" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">ФИО</label>
+                    <input type="text" class="form-control" id="reg-name" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Пароль</label>
+                    <input type="password" class="form-control" id="reg-pass" required>
+                </div>
+                <button type="submit" class="btn btn-success w-100">Зарегистрироваться</button>
+            </form>
+            <div id="reg-msg" class="alert mt-3 d-none"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const data = {
+            email: document.getElementById('reg-email').value,
+            full_name: document.getElementById('reg-name').value,
+            password: document.getElementById('reg-pass').value,
+            role: "supplier" // По умолчанию
+        };
+
+        try {
+            const response = await fetch('/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            const msgDiv = document.getElementById('reg-msg');
+            msgDiv.classList.remove('d-none');
+
+            if (response.ok) {
+                msgDiv.className = 'alert alert-success mt-3';
+                msgDiv.textContent = "Успешная регистрация! Теперь войдите.";
+                setTimeout(() => window.location.href = '/login', 2000);
+            } else {
+                const err = await response.json();
+                msgDiv.className = 'alert alert-danger mt-3';
+                msgDiv.textContent = err.detail || "Ошибка регистрации";
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    });
+</script>
+{% endblock %}

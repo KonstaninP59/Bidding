@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Тендерная площадка{% endblock %}</title>
+    <!-- Подключаем Bootstrap 5 (CSS) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Свои стили -->
+    <link href="/static/css/style.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
+        .navbar-brand { font-weight: bold; color: #0d6efd !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Навигация -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="/">TenderPlatform</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Главная</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/tenders-list">Все тендеры</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav" id="auth-menu">
+                    <!-- Сюда JavaScript вставит кнопки Вход/Выход -->
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-outline-primary ms-2" href="/login">Вход</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-primary text-white ms-2" href="/register">Регистрация</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Основной контент -->
+    <div class="container mt-4">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Подвал -->
+    <footer class="text-center text-muted py-4 mt-5 border-top bg-white">
+        <div class="container">
+            <small>&copy; 2026 Tender Platform. Все права защищены.</small>
+        </div>
+    </footer>
+
+    <!-- Скрипты -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Простой скрипт для проверки авторизации
+        const token = localStorage.getItem('token');
+        const authMenu = document.getElementById('auth-menu');
+        
+        if (token) {
+            authMenu.innerHTML = `
+                <li class="nav-item"><a class="nav-link" href="/profile">Мой кабинет</a></li>
+                <li class="nav-item"><a class="nav-link text-danger" href="#" onclick="logout()">Выход</a></li>
+            `;
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

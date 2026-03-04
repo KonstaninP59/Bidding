@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mb-4">Актуальные тендеры</h2>
+
+<div class="row">
+    {% for tender in tenders %}
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title text-primary">{{ tender.title }}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">Валюта: {{ tender.currency }}</h6>
+                <p class="card-text">{{ tender.description[:100] }}...</p>
+                <a href="/tender/{{ tender.id }}" class="btn btn-outline-primary">Подробнее</a>
+            </div>
+            <div class="card-footer text-muted">
+                Создан: {{ tender.created_at.strftime('%d.%m.%Y') }}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info">Пока нет активных тендеров.</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="p-5 mb-4 bg-white rounded-3 shadow-sm text-center">
+    <div class="container-fluid py-5">
+        <h1 class="display-5 fw-bold">Добро пожаловать на Тендерную площадку</h1>
+        <p class="col-md-8 fs-4 mx-auto">Современная система управления закупками. Прозрачность, скорость и удобство.</p>
+        <div class="mt-4">
+            <a href="/tenders-list" class="btn btn-primary btn-lg px-4 gap-3">Найти тендер</a>
+            <a href="/register" class="btn btn-outline-secondary btn-lg px-4">Стать поставщиком</a>
+        </div>
+    </div>
+</div>
+
+<div class="row align-items-md-stretch">
+    <div class="col-md-6">
+        <div class="h-100 p-5 text-white bg-dark rounded-3">
+            <h2>Для Заказчиков</h2>
+            <p>Создавайте тендеры, настраивайте критерии оценки и выбирайте лучших поставщиков за пару кликов.</p>
+            <button class="btn btn-outline-light" type="button">Создать тендер</button>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="h-100 p-5 bg-light border rounded-3">
+            <h2>Для Поставщиков</h2>
+            <p>Участвуйте в закупках, подавайте предложения и отслеживайте результаты в реальном времени.</p>
+            <a href="/tenders-list" class="btn btn-outline-secondary">Смотреть закупки</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
