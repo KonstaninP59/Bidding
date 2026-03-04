@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Пользователи{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Пользователи</h1>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Роль</th>
+          <th>Блокировка</th>
+          <th>Управление (через Django Admin)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td>{{ u.email }}</td>
+            <td>
+              {% if profiles.u.id %}
+                —
+              {% endif %}
+              {% with p=profiles.u.id %}{% endwith %}
+              {% if profiles %}
+                {% if profiles[u.id] %}
+                  {{ profiles[u.id].get_role_display }}
+                {% else %}
+                  (нет профиля)
+                {% endif %}
+              {% endif %}
+            </td>
+            <td>
+              {% if profiles and profiles[u.id] and profiles[u.id].is_blocked %}
+                <span class="badge text-bg-danger">Заблокирован</span>
+              {% else %}
+                <span class="badge text-bg-success">Активен</span>
+              {% endif %}
+            </td>
+            <td>
+              <a class="btn btn-sm btn-outline-dark" href="/django-admin/auth/user/{{ u.id }}/change/">Открыть в Django Admin</a>
+              <a class="btn btn-sm btn-outline-dark" href="/django-admin/core/userprofile/">Профили</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

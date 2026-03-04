@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Панель{% endblock %}
+{% block content %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-4">
+    <h1 class="h4 mb-2">Панель</h1>
+    <p class="text-muted mb-4">Выберите раздел.</p>
+
+    {% if role == "ADMIN" %}
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="/admin/suppliers/">Поставщики / Аккредитация</a>
+        <a class="btn btn-outline-primary" href="/admin/users/">Пользователи</a>
+        <a class="btn btn-outline-secondary" href="/admin/audit/">Аудит</a>
+        <a class="btn btn-outline-secondary" href="/admin/notifications/">Журнал уведомлений</a>
+        <a class="btn btn-outline-dark" href="/django-admin/">Django Admin (тех.)</a>
+      </div>
+    {% elif role == "CUSTOMER" %}
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="/customer/tenders/">Мои тендеры</a>
+      </div>
+    {% else %}
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="/supplier/tenders/">Мои тендеры / Приглашения</a>
+        <a class="btn btn-outline-primary" href="/supplier/profile/">Профиль и аккредитация</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

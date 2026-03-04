@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Лоты{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Лоты: {{ tender.code }}</h1>
+
+<div class="alert alert-info">
+  Лоты используются только если в тендере включено “С лотами”.
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Название</label>
+          {{ form.title }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Место</label>
+          {{ form.place }}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Описание</label>
+          {{ form.description }}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Условия</label>
+          {{ form.terms }}
+        </div>
+      </div>
+      <button class="btn btn-primary mt-3">Добавить лот</button>
+      <a class="btn btn-outline-secondary mt-3" href="/customer/tenders/{{ tender.id }}/items/">К позициям</a>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead><tr><th>Название</th><th>Место</th></tr></thead>
+      <tbody>
+        {% for l in lots %}
+          <tr><td>{{ l.title }}</td><td>{{ l.place|default:"—" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="2" class="text-muted">Лотов нет.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll("input[type=text], textarea").forEach(e => e.classList.add("form-control"));
+</script>
+{% endblock %}

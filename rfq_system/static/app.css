@@ -1,0 +1,4 @@
+/* Небольшая "современность": мягкие тени, аккуратные карточки */
+.card { border-radius: 14px; }
+.btn { border-radius: 10px; }
+.table { font-size: 0.95rem; }

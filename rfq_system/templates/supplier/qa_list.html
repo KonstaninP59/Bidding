@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Q&A{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Q&A: {{ tender.code }}</h1>
+  <a class="btn btn-outline-secondary" href="/supplier/tenders/{{ tender.id }}/">Назад</a>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6">Задать вопрос</h2>
+    <form method="post">
+      {% csrf_token %}
+      <label class="form-label">Вопрос</label>
+      {{ form.question }}
+      <button class="btn btn-primary mt-2">Отправить</button>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6">Вопросы и ответы</h2>
+    {% for qa in qa_list %}
+      <div class="border rounded-3 p-3 mb-2">
+        <div class="text-muted small">{{ qa.created_at }}</div>
+        <div><b>Вопрос:</b> {{ qa.question }}</div>
+        <div class="mt-2">
+          <b>Ответ:</b>
+          {% if qa.answer %}
+            {{ qa.answer }}
+          {% else %}
+            <span class="text-muted">Пока нет ответа.</span>
+          {% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="text-muted">Вопросов пока нет.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll("textarea").forEach(e => e.classList.add("form-control"));
+</script>
+{% endblock %}

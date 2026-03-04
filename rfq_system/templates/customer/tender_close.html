@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Закрытие тендера{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Закрытие тендера: {{ tender.code }}</h1>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6">Ранжирование (подсказка)</h2>
+    <ul class="mb-0">
+      {% for offer, Si, rank, disq, reason in ranked %}
+        <li>
+          {% if rank %}#{{ rank }}{% else %}—{% endif %}
+          {{ offer.supplier.company_name }} — Si={{ Si }}
+          {% if disq %}<span class="text-danger">(дисквалифицировано)</span>{% endif %}
+        </li>
+      {% empty %}
+        <li class="text-muted">Нет данных для ранжирования.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6">Выбор победителя</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-2">
+        <label class="form-label">Победитель</label>
+        <select class="form-select" name="winner_supplier_id" required>
+          {% for s in suppliers %}
+            <option value="{{ s.id }}">{{ s.company_name }}</option>
+          {% empty %}
+            <option value="">Нет участников</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Обоснование выбора (обязательно)</label>
+        <textarea class="form-control" name="winner_reason" rows="4" required></textarea>
+      </div>
+      <button class="btn btn-danger">Закрыть тендер</button>
+      <a class="btn btn-outline-secondary" href="/customer/tenders/{{ tender.id }}/">Назад</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

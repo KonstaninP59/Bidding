@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Критерии оценки{% endblock %}
+{% block content %}
+<h1 class="h4 mb-1">Критерии оценки: {{ tender.code }}</h1>
+<p class="text-muted mb-3">Сумма весов должна быть ровно 100%. Сейчас: <b>{{ total }}%</b></p>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Название</label>
+          {{ form.title }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Вес (%)</label>
+          {{ form.weight_percent }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Тип</label>
+          {{ form.ctype }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Источник</label>
+          {{ form.source }}
+        </div>
+        <div class="col-md-6">
+          <div class="form-check mt-4">
+            {{ form.mandatory }} <label class="form-check-label">Обязательный (pass/fail)</label>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Подсказка/правило обязательности</label>
+          {{ form.mandatory_hint }}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Таблица баллов (для категориального)</label>
+          {{ form.category_scores_text }}
+          <div class="form-text">{{ form.category_scores_text.help_text }}</div>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <button class="btn btn-primary">Добавить критерий</button>
+        <a class="btn btn-outline-secondary" href="/customer/tenders/{{ tender.id }}/">Назад</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          <th>Критерий</th>
+          <th>Вес</th>
+          <th>Тип</th>
+          <th>Источник</th>
+          <th>Обяз.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in criteria %}
+          <tr>
+            <td>{{ c.title }}</td>
+            <td>{{ c.weight_percent }}%</td>
+            <td>{{ c.get_ctype_display }}</td>
+            <td>{{ c.get_source_display }}</td>
+            <td>{% if c.mandatory %}Да{% else %}Нет{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-muted">Критерии не добавлены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll("input[type=text], input[type=number], textarea, select").forEach(e => e.classList.add("form-control"));
+  document.querySelectorAll("input[type=checkbox]").forEach(e => e.classList.add("form-check-input"));
+</script>
+{% endblock %}

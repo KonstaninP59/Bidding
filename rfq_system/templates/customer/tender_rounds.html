@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Раунды{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Раунды: {{ tender.code }}</h1>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6">Создать следующий раунд (2..N)</h2>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Начало</label>
+          {{ form.start_at }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Дедлайн</label>
+          {{ form.deadline_at }}
+        </div>
+
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="supplier_sees_rank" id="sr" {% if tender.supplier_sees_rank %}checked{% endif %}>
+            <label class="form-check-label" for="sr">Поставщик видит своё место (по итоговому баллу)</label>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Допущенные поставщики</label>
+          <div class="row">
+            {% for inv in invited %}
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="supplier_{{ inv.supplier_id }}" id="s{{ inv.supplier_id }}">
+                  <label class="form-check-label" for="s{{ inv.supplier_id }}">
+                    {{ inv.supplier.company_name }}
+                  </label>
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-muted">Нет приглашённых поставщиков.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary mt-3">Создать раунд</button>
+      <a class="btn btn-outline-secondary mt-3" href="/customer/tenders/{{ tender.id }}/">Назад</a>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Раунд</th>
+          <th>Начало</th>
+          <th>Дедлайн</th>
+          <th>Состояние</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rounds %}
+          <tr>
+            <td>{{ r.number }}</td>
+            <td>{{ r.start_at }}</td>
+            <td>{{ r.deadline_at }}</td>
+            <td><span class="badge text-bg-secondary">{{ r.get_state_display }}</span></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="text-muted">Раундов пока нет.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll("input[type=datetime-local], select").forEach(e => e.classList.add("form-control"));
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Спецификация{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Спецификация: {{ tender.code }}</h1>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="row g-3">
+        {% if tender.with_lots %}
+          <div class="col-md-4">
+            <label class="form-label">Лот</label>
+            {{ form.lot }}
+          </div>
+        {% endif %}
+        <div class="col-md-4">
+          <label class="form-label">Наименование</label>
+          {{ form.name }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Количество</label>
+          {{ form.qty }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Ед. изм.</label>
+          {{ form.unit }}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Требования/комментарии</label>
+          {{ form.requirements }}
+        </div>
+      </div>
+      <button class="btn btn-primary mt-3">Добавить позицию</button>
+      <a class="btn btn-outline-secondary mt-3" href="/customer/tenders/{{ tender.id }}/">Назад</a>
+      {% if tender.with_lots %}
+        <a class="btn btn-outline-primary mt-3" href="/customer/tenders/{{ tender.id }}/lots/">Лоты</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          {% if tender.with_lots %}<th>Лот</th>{% endif %}
+          <th>Наименование</th>
+          <th>Кол-во</th>
+          <th>Ед.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in items %}
+          <tr>
+            {% if tender.with_lots %}<td>{{ i.lot.title }}</td>{% endif %}
+            <td>{{ i.name }}</td>
+            <td>{{ i.qty }}</td>
+            <td>{{ i.unit }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="text-muted">Позиции не добавлены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll("input[type=text], input[type=number], textarea, select").forEach(e => e.classList.add("form-control"));
+</script>
+{% endblock %}

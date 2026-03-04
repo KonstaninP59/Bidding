@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Профиль поставщика{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Профиль и аккредитация</h1>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Анкета</h2>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="save_profile" value="1">
+          <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label">Наименование</label>
+              {{ form.company_name }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">ИНН</label>
+              {{ form.inn }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">КПП</label>
+              {{ form.kpp }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">ОГРН</label>
+              {{ form.ogrn }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Адрес</label>
+              {{ form.address }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Контакты</label>
+              {{ form.contacts }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Категории/теги</label>
+              {{ form.categories }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Статус (подача на проверку)</label>
+              {{ form.accreditation_status }}
+            </div>
+          </div>
+          <button class="btn btn-primary mt-3">Сохранить</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Документы</h2>
+        <ul>
+          {% for d in supplier.documents.all %}
+            <li>{{ d.doc_type }} — {{ d.file.name }}</li>
+          {% empty %}
+            <li class="text-muted">Документов нет.</li>
+          {% endfor %}
+        </ul>
+
+        <form method="post" enctype="multipart/form-data" class="mt-3">
+          {% csrf_token %}
+          <input type="hidden" name="upload_doc" value="1">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Тип</label>
+              {{ dform.doc_type }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Файл</label>
+              {{ dform.file }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Срок действия</label>
+              {{ dform.expires_at }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Комментарий</label>
+              {{ dform.comment }}
+            </div>
+            <div class="col-12">
+              <button class="btn btn-primary">Загрузить</button>
+            </div>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll("input[type=text], input[type=number], input[type=date], textarea, select, input[type=file]").forEach(e => e.classList.add("form-control"));
+</script>
+{% endblock %}

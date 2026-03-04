@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Тендер {{ tender.code }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ tender.code }} — {{ tender.title }}</h1>
+    <div class="text-muted">Статус: <b>{{ tender.get_status_display }}</b></div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="/supplier/tenders/">Назад</a>
+    <a class="btn btn-outline-primary" href="/supplier/tenders/{{ tender.id }}/qa/">Q&A</a>
+  </div>
+</div>
+
+{% if rank_info %}
+  <div class="alert alert-info">
+    <b>Ваше место:</b>
+    {% if rank_info.disq %}
+      предложение дисквалифицировано
+    {% else %}
+      {{ rank_info.rank }} из {{ rank_info.participants }}
+    {% endif %}
+    (Si={{ rank_info.Si }})
+    <div class="small text-muted">Данные конкурентов не раскрываются.</div>
+  </div>
+{% endif %}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6">Документы тендера</h2>
+    <ul>
+      {% for f in tender.files.all %}
+        <li>{{ f.title }} — <a href="{{ f.file.url }}">скачать</a></li>
+      {% empty %}
+        <li class="text-muted">Файлов нет.</li>
+      {% endfor %}
+    </ul>
+
+    <h2 class="h6 mt-3">Участие</h2>
+    {% if active_round %}
+      <div class="alert alert-success">
+        Сейчас идёт раунд {{ active_round.number }} до {{ active_round.deadline_at }}.
+      </div>
+      <a class="btn btn-primary" href="/supplier/tenders/{{ tender.id }}/offer/{{ active_round.id }}/">Подать/обновить предложение</a>
+    {% else %}
+      <div class="alert alert-warning mb-0">Сейчас нет активного раунда.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
