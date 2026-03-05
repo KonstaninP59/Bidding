@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Мой кабинет</h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Email:</strong> {{ user.email }}</p>
+                <p><strong>ФИО:</strong> {{ user.full_name or 'не указано' }}</p>
+                <p><strong>Роль:</strong> 
+                    {% if user.role == 'admin' %}
+                        Администратор
+                    {% elif user.role == 'customer' %}
+                        Заказчик
+                    {% elif user.role == 'supplier' %}
+                        Поставщик
+                    {% else %}
+                        {{ user.role }}
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

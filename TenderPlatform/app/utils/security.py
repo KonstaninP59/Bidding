@@ -1,22 +1,32 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from app.config import settings
 
-# Настройка хеширования паролей (bcrypt)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Проверяет, совпадает ли введённый пароль с хешем в БД.
+    """
+    # Берём первые 72 байта пароля (требование bcrypt)
+    pw_bytes = plain_password.encode('utf-8')[:72]
+    # Хеш из БД хранится как строка, преобразуем в байты
+    return bcrypt.checkpw(pw_bytes, hashed_password.encode('utf-8'))
 
-def verify_password(plain_password, hashed_password):
-    """Проверяет, совпадает ли введенный пароль с хешем в БД."""
-    return pwd_context.verify(plain_password, hashed_password)
+def get_password_hash(password: str) -> str:
+    """
+    Превращает пароль в хеш (bcrypt).
+    Автоматически обрезает до 72 байт.
+    """
+    pw_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(pw_bytes, salt)
+    return hashed.decode('utf-8')
 
-def get_password_hash(password):
-    """Превращает пароль в хеш."""
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """Создает JWT токен для авторизации."""
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Создаёт JWT токен для авторизации.
+    """
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta

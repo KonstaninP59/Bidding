@@ -14,14 +14,14 @@ class TokenData(BaseModel):
 
 # --- ПОЛЬЗОВАТЕЛИ ---
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str
     full_name: Optional[str] = None
     position: Optional[str] = None
     phone: Optional[str] = None
     role: UserRole = UserRole.SUPPLIER
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., min_length=6, max_length=72)
 
 
 class UserResponse(UserBase):

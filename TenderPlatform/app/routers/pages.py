@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, selectinload
-from app import models, database
-from app.dependencies import get_db
+from app import models
+from app.dependencies import get_db, get_current_active_user
 
 router = APIRouter(tags=["Pages"])
 templates = Jinja2Templates(directory="app/templates")
@@ -68,4 +68,17 @@ def page_tender_detail(tender_id: int, request: Request, db: Session = Depends(g
         "request": request,
         "tender": tender,
         "active_round": active_round
+    })
+
+
+@router.get("/profile")
+def page_profile(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Страница профиля пользователя"""
+    return templates.TemplateResponse("profile.html", {
+        "request": request,
+        "user": current_user
     })
