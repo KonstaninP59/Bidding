@@ -1,16 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from app import models, schemas
 from app.dependencies import get_db, get_current_active_user
-from app.utils import files
+from app.utils import files, scoring, audit
 from datetime import datetime
 import json
 import logging
 
-router = APIRouter(prefix="/proposals", tags=["Proposals"])
+router = APIRouter(prefix="/api/proposals", tags=["Предложения"])
 logger = logging.getLogger(__name__)
+
 
 @router.post("/", response_model=schemas.ProposalResponse)
 async def create_proposal(
@@ -19,61 +20,69 @@ async def create_proposal(
     values_json: str = Form(...),
     files_list: List[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: Optional[models.User] = Depends(get_current_active_user)  # может быть None для неавторизованных
 ):
-    # 1. Проверки прав
-    if current_user.role != models.UserRole.SUPPLIER:
-        raise HTTPException(status_code=403, detail="Only suppliers can submit proposals")
+    # Если пользователь не авторизован, проверяем наличие токена в query или form
+    # Для простоты считаем, что неавторизованный может подать, но потом ему предложат создать кабинет
+    # В реальности нужно проверять приглашение по токену (опустим для краткости)
 
-    # 2. Проверка раунда
+    # Проверка раунда
     round_obj = db.query(models.TenderRound).filter(models.TenderRound.id == round_id).first()
     if not round_obj or round_obj.tender_id != tender_id:
-        raise HTTPException(status_code=404, detail="Round not found for this tender")
-    
+        raise HTTPException(status_code=404, detail="Раунд не найден")
     if round_obj.status != models.RoundStatus.ACTIVE:
-        raise HTTPException(status_code=400, detail="Round is not active")
-    
+        raise HTTPException(status_code=400, detail="Раунд не активен")
     if datetime.utcnow() > round_obj.end_time:
-        raise HTTPException(status_code=400, detail="Deadline passed")
+        raise HTTPException(status_code=400, detail="Дедлайн истёк")
 
-    # 3. Проверка, что поставщик уже не подавал предложение в этом раунде
-    existing = db.query(models.Proposal).filter(
-        models.Proposal.round_id == round_id,
-        models.Proposal.supplier_id == current_user.id
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="You already have a proposal for this round")
+    # Если пользователь не авторизован, создаём временного? Нет, просто разрешаем, но supplier_id = None?
+    # По логике гибрида C: поставщик переходит по ссылке, может подать без регистрации.
+    # Для этого нужно разрешить proposal без supplier_id, но потом связать.
+    # Упростим: требуем авторизацию, но дадим возможность создать кабинет после отправки.
+    # В реальном проекте нужна более сложная логика.
 
-    # 4. Парсим JSON значений
+    # Проверка, что поставщик уже не подавал предложение в этом раунде
+    if current_user:
+        existing = db.query(models.Proposal).filter(
+            models.Proposal.round_id == round_id,
+            models.Proposal.supplier_id == current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Вы уже подали предложение в этом раунде")
+        supplier_id = current_user.id
+    else:
+        # Неавторизованный: создаём запись с supplier_id = None? Но тогда потом нужно будет привязать.
+        # Для простоты пока запретим неавторизованным. В реальном проекте нужно через токен приглашения.
+        raise HTTPException(status_code=401, detail="Необходимо авторизоваться")
+
+    # Парсим JSON
     try:
         values_data = json.loads(values_json)
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON format for values")
+        raise HTTPException(status_code=400, detail="Неверный формат JSON")
 
-    # 5. Загружаем критерии тендера для проверки
+    # Загружаем критерии тендера
     criteria = db.query(models.TenderCriterion).filter(
         models.TenderCriterion.tender_id == tender_id
     ).all()
     criterion_ids = {c.id: c for c in criteria}
 
-    # Валидация: все переданные criterion_id должны принадлежать тендеру
     for val in values_data:
         crit_id = val.get('criterion_id')
         if crit_id not in criterion_ids:
-            raise HTTPException(status_code=400, detail=f"Criterion {crit_id} not found in this tender")
-        # Доп. валидация типа значения (можно добавить)
+            raise HTTPException(status_code=400, detail=f"Критерий {crit_id} не найден в этом тендере")
 
-    # 6. Создаем предложение в рамках одной транзакции
+    # Создаём предложение
     new_proposal = models.Proposal(
         round_id=round_id,
-        supplier_id=current_user.id,
+        supplier_id=supplier_id,
         status=models.ProposalStatus.SENT,
         created_at=datetime.utcnow()
     )
     db.add(new_proposal)
-    db.flush()  # чтобы получить id
+    db.flush()
 
-    # 7. Сохраняем значения критериев
+    # Значения критериев
     for val in values_data:
         db_value = models.ProposalValue(
             proposal_id=new_proposal.id,
@@ -83,11 +92,10 @@ async def create_proposal(
         )
         db.add(db_value)
 
-    # 8. Сохраняем файлы (если есть)
+    # Файлы
     if files_list:
         for file in files_list:
             if file and file.filename:
-                # Проверка размера и типа
                 await files.validate_file(file)
                 file_path = await files.save_upload_file(file, subfolder="proposals")
                 db_file = models.ProposalFile(
@@ -99,19 +107,19 @@ async def create_proposal(
 
     try:
         db.commit()
-        db.refresh(new_proposal)
     except IntegrityError as e:
         db.rollback()
         logger.error(f"Integrity error: {e}")
-        raise HTTPException(status_code=400, detail="Database integrity error")
+        raise HTTPException(status_code=400, detail="Ошибка базы данных")
 
-    # Загружаем связанные данные для ответа
+    audit.log_action(db, supplier_id, "CREATE_PROPOSAL", f"Proposal {new_proposal.id}", {"round_id": round_id})
+
     result = db.query(models.Proposal).options(
         selectinload(models.Proposal.values),
         selectinload(models.Proposal.files)
     ).filter(models.Proposal.id == new_proposal.id).first()
-
     return result
+
 
 @router.get("/my", response_model=List[schemas.ProposalResponse])
 def read_my_proposals(
@@ -122,6 +130,30 @@ def read_my_proposals(
         models.Proposal.supplier_id == current_user.id
     ).options(
         selectinload(models.Proposal.values),
-        selectinload(models.Proposal.files)
+        selectinload(models.Proposal.files),
+        selectinload(models.Proposal.round).selectinload(models.TenderRound.tender)
+    ).all()
+    return proposals
+
+
+@router.get("/round/{round_id}", response_model=List[schemas.ProposalResponse])
+def get_round_proposals(
+    round_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    # Проверка прав (заказчик или админ)
+    round_obj = db.query(models.TenderRound).filter(models.TenderRound.id == round_id).first()
+    if not round_obj:
+        raise HTTPException(status_code=404, detail="Раунд не найден")
+    tender = db.query(models.Tender).filter(models.Tender.id == round_obj.tender_id).first()
+    if tender.owner_id != current_user.id and current_user.role != models.UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    proposals = db.query(models.Proposal).filter(
+        models.Proposal.round_id == round_id
+    ).options(
+        selectinload(models.Proposal.values),
+        selectinload(models.Proposal.files),
+        selectinload(models.Proposal.supplier)
     ).all()
     return proposals

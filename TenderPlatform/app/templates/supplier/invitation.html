@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="alert alert-info">
+    <h4>Вы приглашены к участию в тендере "{{ tender.title }}"</h4>
+    <p>Для подачи предложения перейдите по <a href="/tender/{{ tender.id }}?token={{ token }}">ссылке</a>.</p>
+    <p>Если у вас ещё нет кабинета, вы сможете создать его после отправки предложения.</p>
+</div>
+{% endblock %}

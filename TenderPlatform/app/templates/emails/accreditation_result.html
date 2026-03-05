@@ -1,0 +1,11 @@
+<p>Здравствуйте!</p>
+<p>Результат проверки аккредитации компании "{{ company_name }}":</p>
+<p><strong>Статус:</strong> 
+    {% if status == 'accredited' %}Аккредитована
+    {% elif status == 'rejected' %}Отказ
+    {% elif status == 'suspended' %}Приостановлена
+    {% else %}{{ status }}{% endif %}
+</p>
+{% if comment %}
+<p><strong>Комментарий:</strong> {{ comment }}</p>
+{% endif %}

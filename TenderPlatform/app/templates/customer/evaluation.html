@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Оценка предложений: {{ tender.title }}</h2>
+{% if round %}
+<h4>Раунд {{ round.round_number }}</h4>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Поставщик</th>
+            {% for criterion in tender.criteria %}
+            <th>{{ criterion.name }} ({{ criterion.weight }}%)</th>
+            {% endfor %}
+            <th>Итоговый балл</th>
+            <th>Статус</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for proposal in proposals %}
+        <tr>
+            <td>{{ proposal.supplier.email }}</td>
+            {% for criterion in tender.criteria %}
+                {% set value = proposal.values|selectattr("criterion_id", "equalto", criterion.id)|first %}
+                <td>
+                    {% if criterion.criterion_type.value == 'manual' %}
+                        <input type="number" class="form-control manual-score" data-proposal="{{ proposal.id }}" data-criterion="{{ criterion.id }}" value="{{ value.value_numeric if value else '' }}" step="0.1" min="0" max="100">
+                    {% else %}
+                        {{ value.value_numeric if value else value.value_text }}
+                    {% endif %}
+                </td>
+            {% endfor %}
+            <td>{{ proposal.final_score|round(2) if proposal.final_score else '—' }}</td>
+            <td>
+                {% if proposal.status.value == 'disqualified' %}
+                    <span class="badge bg-danger">Дисквалифицирован</span><br>{{ proposal.disqualification_reason }}
+                {% else %}
+                    <span class="badge bg-success">Допущен</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if proposal.status.value != 'disqualified' %}
+                <button class="btn btn-sm btn-danger disqualify" data-proposal="{{ proposal.id }}">Дисквалифицировать</button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<button id="recalcBtn" class="btn btn-warning">Пересчитать баллы</button>
+<button id="selectWinnerBtn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#winnerModal">Выбрать победителя</button>
+
+<!-- Модальное окно выбора победителя -->
+<div class="modal fade" id="winnerModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Выбор победителя</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="winnerForm">
+          <div class="mb-3">
+            <label class="form-label">Предложение</label>
+            <select class="form-select" name="proposal_id" required>
+              {% for proposal in proposals if proposal.status.value != 'disqualified' %}
+              <option value="{{ proposal.id }}">{{ proposal.supplier.email }} (балл {{ proposal.final_score|round(2) }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Обоснование</label>
+            <textarea class="form-control" name="justification" rows="3" required></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-primary" id="confirmWinner">Выбрать</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<p>Нет завершённых раундов для оценки.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const token = localStorage.getItem('token');
+
+    document.querySelectorAll('.manual-score').forEach(input => {
+        input.addEventListener('change', async (e) => {
+            const proposalId = input.dataset.proposal;
+            const criterionId = input.dataset.criterion;
+            const score = parseFloat(input.value);
+            if (isNaN(score)) return;
+            const response = await fetch('/api/evaluation/manual-score', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({
+                    proposal_id: parseInt(proposalId),
+                    criterion_id: parseInt(criterionId),
+                    score: score
+                })
+            });
+            if (!response.ok) alert('Ошибка сохранения');
+        });
+    });
+
+    document.querySelectorAll('.disqualify').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const proposalId = btn.dataset.proposal;
+            const reason = prompt('Причина дисквалификации:');
+            if (!reason) return;
+            const response = await fetch('/api/evaluation/disqualify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({
+                    proposal_id: parseInt(proposalId),
+                    reason: reason
+                })
+            });
+            if (response.ok) location.reload();
+            else alert('Ошибка');
+        });
+    });
+
+    document.getElementById('recalcBtn')?.addEventListener('click', async () => {
+        await fetch(`/api/evaluation/round/{{ round.id }}/calculate`, {
+            method: 'POST',
+            headers: {'Authorization': 'Bearer ' + token}
+        });
+        location.reload();
+    });
+
+    document.getElementById('confirmWinner')?.addEventListener('click', async () => {
+        const form = document.getElementById('winnerForm');
+        const formData = new FormData(form);
+        const data = {
+            proposal_id: parseInt(formData.get('proposal_id')),
+            justification: formData.get('justification')
+        };
+        const response = await fetch(`/api/tenders/{{ tender.id }}/select-winner`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            alert('Победитель выбран');
+            window.location.href = `/api/reports/tender/{{ tender.id }}/pdf`;
+        } else {
+            const err = await response.json();
+            alert('Ошибка: ' + err.detail);
+        }
+    });
+</script>
+{% endblock %}

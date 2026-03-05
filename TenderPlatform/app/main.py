@@ -1,19 +1,20 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from app import models, database
-from app.routers import auth, tenders, proposals, pages
-
-# Создаем таблицы (для разработки; в production использовать alembic)
-models.Base.metadata.create_all(bind=database.engine)
-
-app = FastAPI(
-    title="Tender Platform",
-    description="Тендерная площадка",
-    version="1.0.0"
+from app import models
+from app.database import engine
+from app.routers import (
+    auth, pages, proposals, tenders, invitations,
+    admin, rounds, evaluation, qna, 
+    # reports
 )
 
-# CORS для разработки
+# Создание таблиц (для разработки)
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="Tender Platform", description="Тендерная площадка", version="1.0.0")
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,6 +28,12 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Роутеры
 app.include_router(auth.router)
+app.include_router(pages.router)
 app.include_router(tenders.router)
 app.include_router(proposals.router)
-app.include_router(pages.router)
+app.include_router(invitations.router)
+app.include_router(admin.router)
+app.include_router(rounds.router)
+app.include_router(evaluation.router)
+app.include_router(qna.router)
+# app.include_router(reports.router)

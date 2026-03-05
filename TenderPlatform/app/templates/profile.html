@@ -1,28 +1,57 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div class="row justify-content-center">
+<div class="row">
     <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Мой кабинет</h4>
+                <h4 class="mb-0">Мой профиль</h4>
             </div>
             <div class="card-body">
                 <p><strong>Email:</strong> {{ user.email }}</p>
                 <p><strong>ФИО:</strong> {{ user.full_name or 'не указано' }}</p>
                 <p><strong>Роль:</strong> 
-                    {% if user.role == 'admin' %}
-                        Администратор
-                    {% elif user.role == 'customer' %}
-                        Заказчик
-                    {% elif user.role == 'supplier' %}
-                        Поставщик
-                    {% else %}
-                        {{ user.role }}
-                    {% endif %}
+                    {% if user.role == 'admin' %}Администратор
+                    {% elif user.role == 'customer' %}Заказчик
+                    {% elif user.role == 'supplier' %}Поставщик
+                    {% else %}{{ user.role }}{% endif %}
                 </p>
             </div>
         </div>
     </div>
+    {% if company %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Информация о компании</h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Название:</strong> {{ company.name }}</p>
+                <p><strong>ИНН:</strong> {{ company.inn or '—' }}</p>
+                <p><strong>КПП:</strong> {{ company.kpp or '—' }}</p>
+                <p><strong>ОГРН:</strong> {{ company.ogrn or '—' }}</p>
+                <p><strong>Адрес:</strong> {{ company.address or '—' }}</p>
+                <p><strong>Статус аккредитации:</strong> 
+                    {% if company.accreditation_status == 'draft' %}Черновик
+                    {% elif company.accreditation_status == 'on_check' %}На проверке
+                    {% elif company.accreditation_status == 'accredited' %}Аккредитована
+                    {% elif company.accreditation_status == 'rejected' %}Отказ
+                    {% elif company.accreditation_status == 'suspended' %}Приостановлена
+                    {% else %}{{ company.accreditation_status }}{% endif %}
+                </p>
+                {% if company.accreditation_comment %}
+                <p><strong>Комментарий:</strong> {{ company.accreditation_comment }}</p>
+                {% endif %}
+                <h5 class="mt-3">Документы</h5>
+                <ul class="list-group">
+                    {% for doc in documents %}
+                    <li class="list-group-item">{{ doc.file_name }} (загружен {{ doc.uploaded_at.strftime('%d.%m.%Y') }})</li>
+                    {% else %}
+                    <li class="list-group-item">Нет загруженных документов</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

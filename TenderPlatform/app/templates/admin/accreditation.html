@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Аккредитация поставщиков</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Компания</th>
+            <th>ИНН</th>
+            <th>Статус</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for company in companies %}
+        <tr>
+            <td>{{ company.name }}</td>
+            <td>{{ company.inn|default('—', true) }}</td>
+            <td>
+                {% if company.accreditation_status == 'draft' %}Черновик
+                {% elif company.accreditation_status == 'on_check' %}На проверке
+                {% elif company.accreditation_status == 'accredited' %}Аккредитована
+                {% elif company.accreditation_status == 'rejected' %}Отказ
+                {% elif company.accreditation_status == 'suspended' %}Приостановлена
+                {% else %}{{ company.accreditation_status }}{% endif %}
+            </td>
+            <td>
+                <button class="btn btn-sm btn-success" onclick="setStatus('{{ company.id }}', 'accredited')">Аккредитовать</button>
+                <button class="btn btn-sm btn-danger" onclick="setStatus('{{ company.id }}', 'rejected')">Отказать</button>
+                <button class="btn btn-sm btn-warning" onclick="setStatus('{{ company.id }}', 'suspended')">Приостановить</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert('Вы не авторизованы. Перенаправление на страницу входа.');
+        window.location.href = '/login';
+    }
+
+    async function setStatus(companyId, status) {
+        const id = parseInt(companyId);
+        const comment = prompt('Комментарий (необязательно):');
+        const url = `/api/admin/suppliers/${id}/accredit?status=${status}&comment=${encodeURIComponent(comment || '')}`;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Authorization': 'Bearer ' + token}
+            });
+            if (response.ok) {
+                location.reload();
+            } else {
+                const error = await response.json();
+                alert('Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+            }
+        } catch (err) {
+            alert('Сетевая ошибка: ' + err.message);
+        }
+    }
+</script>
+{% endblock %}

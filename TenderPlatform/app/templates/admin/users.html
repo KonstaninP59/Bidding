@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Управление пользователями</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Роль</th>
+            <th>Активен</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.email }}</td>
+            <td>{{ user.role }}</td>
+            <td>{{ 'Да' if user.is_active else 'Нет' }}</td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick="toggleBlock('{{ user.id }}')">
+                    {% if user.is_active %}Заблокировать{% else %}Разблокировать{% endif %}
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert('Вы не авторизованы.');
+        window.location.href = '/login';
+    }
+
+    async function toggleBlock(userId) {
+        const id = parseInt(userId);
+        try {
+            const response = await fetch(`/api/admin/users/${id}/block`, {
+                method: 'POST',
+                headers: {'Authorization': 'Bearer ' + token}
+            });
+            if (response.ok) {
+                location.reload();
+            } else {
+                const error = await response.json();
+                alert('Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+            }
+        } catch (err) {
+            alert('Сетевая ошибка: ' + err.message);
+        }
+    }
+</script>
+{% endblock %}

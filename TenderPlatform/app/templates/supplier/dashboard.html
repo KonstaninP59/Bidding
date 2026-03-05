@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Кабинет поставщика</h2>
+
+<h3>Приглашения</h3>
+<table class="table">
+    <thead><tr><th>Тендер</th><th>Дедлайн</th><th>Статус</th><th>Действие</th></tr></thead>
+    <tbody>
+        {% for inv in invitations %}
+        <tr>
+            <td>{{ inv.tender.title }}</td>
+            <td>{{ inv.tender.rounds[0].end_time.strftime('%d.%m.%Y %H:%M') }}</td>
+            <td>{% if inv.is_used %}Использовано{% else %}Активно{% endif %}</td>
+            <td><a href="/tender/{{ inv.tender_id }}?token={{ inv.token }}" class="btn btn-sm btn-primary">Перейти</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Нет приглашений</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>Мои предложения</h3>
+<table class="table">
+    <thead><tr><th>Тендер</th><th>Раунд</th><th>Статус</th><th>Балл</th><th>Место</th></tr></thead>
+    <tbody>
+        {% for prop in proposals %}
+        <tr>
+            <td>{{ prop.round.tender.title }}</td>
+            <td>{{ prop.round.round_number }}</td>
+            <td>{{ prop.status.value }}</td>
+            <td>{{ prop.final_score|round(2) if prop.final_score else '—' }}</td>
+            <td>
+                {% if prop.round.tender.is_vendor_rank_visible and prop.rank %}
+                    {{ prop.rank }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">Нет предложений</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

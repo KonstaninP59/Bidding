@@ -1,4 +1,5 @@
-fastapi==0.115.0 
+txt
+fastapi==0.115.0
 uvicorn==0.30.1
 sqlalchemy==2.0.35
 pydantic==2.9.2
@@ -9,5 +10,5 @@ passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 email-validator==2.2.0
 aiofiles==24.1.0
-# psycopg2-binary закомментирован, т.к. используем SQLite
-# weasyprint пока не нужен для тестирования
+weasyprint==60.2      # для генерации PDF
+# psycopg2-binary==2.9.9  # для PostgreSQL (раскомментировать при переходе)

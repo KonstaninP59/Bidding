@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block content %}
 <div class="p-5 mb-4 bg-white rounded-3 shadow-sm text-center">
     <div class="container-fluid py-5">
@@ -17,14 +16,14 @@
         <div class="h-100 p-5 text-white bg-dark rounded-3">
             <h2>Для Заказчиков</h2>
             <p>Создавайте тендеры, настраивайте критерии оценки и выбирайте лучших поставщиков за пару кликов.</p>
-            <button class="btn btn-outline-light" type="button">Создать тендер</button>
+            <a href="/customer/dashboard" class="btn btn-outline-light">Перейти в кабинет</a>
         </div>
     </div>
     <div class="col-md-6">
         <div class="h-100 p-5 bg-light border rounded-3">
             <h2>Для Поставщиков</h2>
             <p>Участвуйте в закупках, подавайте предложения и отслеживайте результаты в реальном времени.</p>
-            <a href="/tenders-list" class="btn btn-outline-secondary">Смотреть закупки</a>
+            <a href="/supplier/dashboard" class="btn btn-outline-secondary">Мои тендеры</a>
         </div>
     </div>
 </div>

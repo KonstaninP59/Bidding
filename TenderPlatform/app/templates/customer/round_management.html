@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Управление раундами: {{ tender.title }}</h2>
+
+<h3>Существующие раунды</h3>
+<table class="table">
+    <thead><tr><th>Номер</th><th>Статус</th><th>Дедлайн</th><th>Допущенные</th></tr></thead>
+    <tbody>
+        {% for round in tender.rounds %}
+        <tr>
+            <td>{{ round.round_number }}</td>
+            <td>{{ round.status.value }}</td>
+            <td>{{ round.end_time.strftime('%d.%m.%Y %H:%M') }}</td>
+            <td>
+                {% if round.round_number > 1 %}
+                    {% for allowed in round.allowed_suppliers %}
+                        {{ allowed.supplier.email }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                {% else %}
+                    Все приглашённые
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if tender.status.value == 'published' and tender.rounds[-1].status.value == 'completed' %}
+<h3 class="mt-4">Создать следующий раунд</h3>
+<form id="nextRoundForm">
+    <div class="mb-3">
+        <label class="form-label">Дедлайн</label>
+        <input type="datetime-local" class="form-control" name="end_time" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Допустить поставщиков</label>
+        <select class="form-select" name="allowed_suppliers" multiple size="5">
+            {% for supplier in suppliers %}
+            <option value="{{ supplier.id }}">{{ supplier.email }} ({{ supplier.company.name }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Создать раунд</button>
+</form>
+<div id="result-msg"></div>
+{% endif %}
+
+<script>
+    const token = localStorage.getItem('token');
+    document.getElementById('nextRoundForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const end_time = new Date(formData.get('end_time')).toISOString();
+        const allowed = Array.from(formData.getAll('allowed_suppliers')).map(id => parseInt(id));
+        const payload = {
+            end_time: end_time,
+            allowed_supplier_ids: allowed
+        };
+        const response = await fetch(`/api/rounds/{{ tender.id }}/next`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(payload)
+        });
+        const msg = document.getElementById('result-msg');
+        if (response.ok) {
+            msg.innerHTML = '<div class="alert alert-success">Раунд создан</div>';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            const err = await response.json();
+            msg.innerHTML = `<div class="alert alert-danger">${err.detail}</div>`;
+        }
+    });
+</script>
+{% endblock %}
