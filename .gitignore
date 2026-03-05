@@ -1,0 +1,32 @@
+# Виртуальное окружение
+venv/
+env/
+ENV/
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# База данных (SQLite)
+*.db
+*.sqlite3
+
+# Файлы конфигурации с секретами
+.env
+
+# Папка загрузок (с пользовательскими файлами)
+uploads/
+
+# IDE
+.vscode/
+.idea/
+
+# Логи и временные файлы
+*.log
+*.tmp
+
+# Системные файлы Windows
+Thumbs.db
+Desktop.ini
